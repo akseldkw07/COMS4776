@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../../coding/kretsinger"
+		},
+		{
+			"path": "../../../coding/Columbia"
+		},
+		{
+			"path": "../Latex-Examples"
+		}
+	],
+	"settings": {
+		"chatgpt.openOnStartup": false
+	}
+}

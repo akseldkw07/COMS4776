@@ -1,0 +1,321 @@
+\documentclass[12pt]{article}
+% TikZ setup
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,bending}
+\newcommand{\duedate}{10/06/2025 2pm}
+\newcommand{\assignment}{Assignment 1} % Change to "Problem Set X"
+
+% Change the following to your name and UNI.
+\newcommand{\name}{Aksel Kretsinger-Walters, adk2164}
+\newcommand{\email}{adk2164@columbia.edu}
+
+% NOTE: Defining collaborators is optional; to not list collaborators, comment out the
+% line below. Maximum of two collaborators per problem set.
+%\newcommand{\collaborators}{Vig Vigerton (\texttt{UNI}), Alice Bob (\texttt{UNI})}
+% No collaborators on PS 0
+
+\makeatletter
+\def\input@path{{../}{../../}} % add as many parents as you need
+\makeatother
+\input{pset_template.tex} %% DO NOT CHANGE THIS LINE
+
+\begin{document}
+
+\psetheader %% DO NOT CHANGE THIS LINE
+
+\section*{(1) Written Problems}
+\subsection*{(1.1) Hard-Coding Networks}
+So, for this problem, we need to create a neural network that can identify a superlative superincreasing
+sequence. Our input vector is $\RR^{1\times 4}$, our hidden layer is $\RR^{1\times 3}$, and our output
+layer is $\{0, 1\} \in \RR^{1\times 1}$. It's recommended to use the hard threshold activation function and the indicator
+activation function.
+
+My approach to this problem is to use each hidden neuron to test each step of the superincreasing sequence.
+So the first neuron will test if $x_2 > x_1$, the second neuron will test if $x_3 > x_1 + x_2$,
+and the third neuron will test if $x_4 > x_1 + x_2 + x_3$. Because superincreasing sequences must be
+\tbf{strictly increasing}, ties will be treated as failures. The output neuron will then use the indicator
+function to check that all three hidden neurons "passed" their tests.
+
+Our hidden layer weights and biases are:
+$$
+\bW^{(1)} =
+\begin{pmatrix}
+		1 & -1 & 0 & 0 \\
+		1 & 1 & -1 & 0 \\
+		1 & 1 & 1 & -1
+\end{pmatrix}
+\quad
+\bb^{(1)} =
+\begin{pmatrix}
+		0 \\
+		0 \\
+		0
+\end{pmatrix}
+\bw^{(2)} =
+\begin{pmatrix}
+		1 \\
+		1 \\
+		1
+\end{pmatrix}
+\quad
+b^{(2)} = 1
+$$
+
+Our first hidden neurons are all using the hard threshold activation function, and our output
+neuron is using the indicator activation function. From row 1, a value of 0 is considered a
+pass, and a value of 1 is considered a fail. From row 2, any value outside of $[-1,1]$ is
+a failure. Hence, the weights of second row are all 1s, and the bias is 1.
+
+\newpage
+\subsection*{(1.2) Backpropagation}
+\tbf{Computational Graph}
+
+% \medskip
+\begin{tikzpicture}[
+				>=Stealth,
+				node distance=16mm and 18mm,
+				var/.style={circle,draw,minimum size=7mm,inner sep=0pt},
+				every edge quotes/.style={auto,red}
+		]
+
+		% Nodes
+		\node[var] (X) {$x$};
+
+		\node[var, right=of X, yshift=12mm] (a1) {$a_1$};
+		\node[var, right=of X, yshift=-12mm] (a2) {$a_2$};
+
+		\node[var, right=8mm of a2] (u) {$u$};
+
+		\node[var, right=22mm of a1] (c1) {$c_1$};
+		\node[var, right=11mm of u] (c2) {$c_2$};
+
+		\node[var, right=15mm of c2] (g) {$g$};
+		\node[var, right=22mm of g] (y) {$y$};
+		\node[var, right=11mm of y] (yp) {$y'$};
+		\node[var, right=12mm of yp] (s) {$s$};
+		\node[var, right=12mm of s] (J) {$\cJ$};
+
+		% External input t into s
+		\node[var, above left=14mm of s, draw=none] (t) {$t$};
+
+		% Edges (black structure)
+		\draw[->] (X) -- (a1);
+		\draw[->] (X) -- (a2);
+
+		\draw[->] (a1) -- (u);
+		\draw[->] (a2) -- (u);
+
+		\draw[->] (a1) -- (c1);
+		\draw[->] (u) -- (c2);
+
+		\draw[->] (c1) -- (g);
+		\draw[->] (c2) -- (g);
+
+		\draw[->] (g) -- (y) node[midway, above, red] {$\bW^{(3)}$};
+		\draw[->] (y) -- (yp);
+		\draw[->] (yp) -- (s);
+		\draw[->] (s) -- (J);
+
+		% Skip from x to y (curved)
+		\draw[->] (X) to[bend right=50] node[pos=0.6, below, red] {$\bW^{(4)}$} (y);
+
+		% t -> s
+		\draw[->] (t) -- (s);
+
+		% Red parameter/bias annotations
+		\node[red, above =0mm of a1] {$\bW^{(1)}$};
+		\node[red, below=0mm of a1] {$b^{(1)}$};
+
+		\node[red, above=0mm of a2] {$\bW^{(2)}$};
+		\node[red, below=0mm of a2] {$b^{(2)}$};
+
+		\node[red, above=1mm of g] {$\bW^{(g)}$};
+		\node[red, below=0mm of g] {$b^{(g)}$};
+
+\end{tikzpicture}
+
+\tbf{Backwards Pass}
+\begin{align*}
+		\overline{\cJ} &= 1 \\
+		\overline{\bs} &= -\overline{\cJ} = - 1 \cdot 1 = -1 \\
+		\overline{\by'} &= \overline{\bs} (\by-\bt) = \bt-\by \\
+		\overline{\by} &= \overline{\by'} \cdot \text{softmax}'(\by)  \\
+		\overline{\bg} &= \bW^{(3)T}\cdot \overline{\by} \\
+		\overline{\bW^{(3)}} &= \overline{\by}\cdot \bg^T \\
+		\overline{\bW^{(g)}}&= \overline{\bg}\cdot
+		\begin{pmatrix}
+				\bc_1 \\
+				\bc_2
+		\end{pmatrix}^T \\
+		\overline{b^{(g)}} &= \overline{\bg} \\
+		\overline{c_1} &= \bW^{(g)}_{c_1} \cdot \overline{\bg}  \\
+		\overline{c_2} &= \bW^{(g)}_{c_2} \cdot \overline{\bg}  \\
+		\overline{\bu} &= \overline{c_2} \cdot \text{ReLU}'(c_2) \\
+		\overline{\bW^{(2)}} &= \overline{\bu} \cdot \bx^T \\
+		\overline{b^{(2)}} &= \overline{\ba_2} \\
+		\overline{\ba_2} &= \overline{\bu} \\
+		\overline{\bW^{(1)}} &= \overline{\ba_1} \cdot \bx^T \\
+		\overline{b^{(1)}} &= \overline{\ba_1} \\
+		\overline{\ba_1} &= \overline{\bu} + \overline{c_1} \cdot \sigma'(a_1) \\
+		\overline{\bx} &= \bW^{(1)T} \cdot \overline{\ba_1} + \bW^{(2)T} \cdot \overline{\ba_2} + \bW^{(4)T} \cdot \overline{\by}
+\end{align*}
+\newpage
+\subsection*{(1.3) Automatic Differentiation}
+\tbf{Compute Hessian}
+
+Our loss function is $$L(\bx) = \frac{1}{2}\bx^T\bv\bv^T\bx$$
+
+A quick simplification (note that $\bv^T\bx$ is a scalar, so it's equal to its own transpose):
+\begin{align*}
+		L(\bx) &= \frac{1}{2}\bx^T\bv\bv^T\bx \\
+		&= \frac{1}{2}(\bv^T\bx)(\bx^T\bv) \\
+		&= \frac{1}{2}(\bv^T\bx)^2
+\end{align*}
+We can see that this is a quadratic form ($\frac{1}{2}\bx^T\bv\bv^T\bx = \frac{1}{2}\bx^T\bA\bx$).
+
+So, the gradient is:
+\begin{align*}
+		\nabla L(\bx) &= \frac{1}{2}(\bA+\bA^T)\bx \\
+		&= \frac{1}{2}(\bv\bv^T + \bv^T\bv)\bx \\
+		&= \bv\bv^T\bx
+\end{align*}
+
+And the Hessian is:
+\begin{align*}
+		\nabla^2 L(\bx) &= \bA \\
+		&= \bv\bv^T
+\end{align*}
+
+Now that we have the correct Hessian formula, lets plug in our values for $\bv$ and then solve for $\bx$
+\begin{align*}
+		\bv^T = [3,1,4] &\implies \bv =
+		\begin{pmatrix}
+				3 \\
+				1 \\
+				4
+		\end{pmatrix} \\
+		\nabla^2 L(\bx) &= \bv\bv^T \\
+		&=
+		\begin{pmatrix}
+				3 \\
+				1 \\
+				4
+		\end{pmatrix}
+		\begin{pmatrix}
+				3 & 1 & 4
+		\end{pmatrix} \\
+		&=
+		\begin{pmatrix}
+				9 & 3 & 12 \\	
+				3 & 1 & 4 \\
+				12 & 4 & 16
+		\end{pmatrix}\\
+		\bx^T = [2,1,3] &\implies \bx =
+		\begin{pmatrix}
+				2 \\
+				1 \\
+				3
+		\end{pmatrix} \\
+		\nabla^2 L(\bx) &=
+		\begin{pmatrix}
+				9 & 3 & 12 \\	
+				3 & 1 & 4 \\
+				12 & 4 & 16
+		\end{pmatrix}
+		\begin{pmatrix}
+				2 \\
+				1 \\
+				3
+		\end{pmatrix} \\
+		&=
+		\begin{pmatrix}
+				9\cdot 2 + 3\cdot 1 + 12	\cdot 3 \\
+				3\cdot 2 + 1\cdot 1 + 4 \cdot 3 \\
+				12\cdot 2 + 4\cdot 1 + 16 \cdot 3
+		\end{pmatrix} \\
+		&=
+		\begin{pmatrix}
+				57 \\
+				19 \\
+				76
+		\end{pmatrix}
+\end{align*}
+\tbf{Computation Cost}
+The cost of explicitly computing the Hessian using automatic differentiation is $O(n^2)$, where $n$ is the
+dimension of $\bx$. This is because the Hessian is an $n \times n$ matrix, and each entry
+requires $O(1)$ time to compute. Therefore, the total time complexity is $O(n^2)$.
+
+However, we could compute the Hessian-vector product
+efficiently using the formula $\nabla^2 L(\bx) = \bv(\bv^T\bx)$. This would only require
+$O(n)$ time, since we only need to compute the dot product $\bv^T\bx$ and then scale $\bv$ by that
+scalar.
+
+\subsection*{1.3.1 Vector-Hessian Products}
+Hah, looks like I got a bit ahead of myself in the previous section. We'll explicitly compute the
+vector-Hessian product here.
+\begin{align*}
+		\bz = \bH \by &= (\bv\bv^T)\by \\
+		\bv^T &= [4,2,1] \\
+		\by^T &= [2,2,1] \\
+		\text{Reverse-mode autodiff:} \\
+		\bv^T\by &= 4\cdot 2 + 2\cdot 2 + 1\cdot 1 = 13 \\
+		\bz &= 13 \cdot
+		\begin{pmatrix}
+				4 \\
+				2 \\
+				1
+		\end{pmatrix} =
+		\begin{pmatrix}
+				52 \\
+				26 \\
+				13
+		\end{pmatrix} \\
+		\text{Forward-mode autodiff:} \\
+		\bv\bv^T &=
+		\begin{pmatrix}
+				16 & 8 & 4 \\
+				8 & 4 & 2 \\
+				4 & 2 & 1
+		\end{pmatrix} \\
+		\bz &=
+		\begin{pmatrix}
+				16 & 8 & 4 \\
+				8 & 4 & 2 \\
+				4 & 2 & 1
+		\end{pmatrix}
+		\begin{pmatrix}
+				2 \\
+				2 \\
+				1
+		\end{pmatrix} =
+		\begin{pmatrix}
+				52 \\
+				26 \\
+				13
+		\end{pmatrix}
+\end{align*}
+
+\tbf{Computation Efficiency}
+\begin{align*}
+		\bH &= \bv \bv^T \\
+		\bZ = \bH \by_1 \by_2^T &= \bv (\bv^T \by_1) \by_2^T
+\end{align*}
+Let's evaluate how many operations this takes using forward-mode and reverse-mode autodiff.
+\begin{align*}
+		\bv \in {\RR^n}, \by_1 &\in {\RR^n}, \by_2 \in {\RR^m} \\
+		\tbf{Reverse-mode autodiff:} \\
+		\by_2 \by_1^T =\bY \in \RR^{n \times m} &= O(n m) \text{ operations to compute} \\
+		\bv^T \bY = \ba \in \RR^{1 \times m} &= O(n^2) \text{ operations to compute} \\
+		\bv \ba = \bZ \in \RR^{n \times m} &= O(n m) \text{ operations to compute} \\
+		\text{Total: } O(n m) + O(n^2) + O(n m) &= O(n^2 + n m) \text{ operations} \\
+		&= O(n^2) \text{ if } m \leq n. \quad O(n m) \text{ if } m > n \\
+		\tbf{Forward-mode} \\
+		\bv \bv^T =\bH \in \RR^{n \times n} &= O(n^2) \text{ operations to compute} \\
+		\bH \by_1 = \bz \in \RR^{n \times 1} &= O(n^2) \text{ operations to compute} \\
+		\bz \by_2^T = \bZ \in \RR^{n \times m} &= O(n m) \text{ operations to compute} \\
+		\text{Total: } O(n^2) + O(n^2) + O(n m) &= O(n^2 + n m) \text{ operations}
+\end{align*}
+
+We can see that if $m<n$ reverse-mode is more efficient, and if $m>n$ forward-mode is more efficient.
+
+\end{document}
