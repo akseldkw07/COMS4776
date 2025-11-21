@@ -13,7 +13,9 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
 from tqdm.auto import tqdm
 
-from homework.HW2.dataset import DecoderDataset, EncoderDecoderDataset
+from dataset import DecoderDataset, EncoderDecoderDataset
+
+TORCH_ZERO = torch.tensor([0.0])
 
 
 def prepare(batch: t.Tuple[torch.Tensor, ...], device: DEVICE_LITERAL):
@@ -86,7 +88,7 @@ def _evaluate(
     device: DEVICE_LITERAL,
 ):
     model.eval()
-    total_loss = torch.Tensor(0.0)
+    total_loss = TORCH_ZERO
     n_tokens = 0
     with torch.no_grad():
         for batch in loader:
@@ -119,12 +121,12 @@ def train(
     flops_per_step = out[0]
 
     hist = {"train_loss": [], "val_loss": [], "flops": [], "tokens": []}
-    cum_flops = torch.Tensor(0.0)
-    cum_tokens = torch.Tensor(0.0)
+    cum_flops = TORCH_ZERO
+    cum_tokens = TORCH_ZERO
 
     for epoch in range(1, num_epochs + 1):
 
-        train_loss = torch.Tensor(0.0)
+        train_loss = TORCH_ZERO
         n_tokens = 0
 
         for batch in train_loader:
