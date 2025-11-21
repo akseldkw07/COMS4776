@@ -1,9 +1,7 @@
 # train.py
 from __future__ import annotations
 
-import itertools
 import typing as t
-from typing import Any
 
 import torch
 from types_hw2 import TrainerHistDict
@@ -11,8 +9,7 @@ from kret_studies.kret_torch.mixin.constants import DEVICE_LITERAL, DEVICE_TORCH
 from thop import profile
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, Dataset, random_split
-from tqdm.auto import tqdm
+from torch.utils.data import DataLoader, random_split
 
 from dataset import DecoderDataset, EncoderDecoderDataset
 
@@ -200,7 +197,9 @@ def model_filename(
     return f"Model_{spec_str}.pt"
 
 
-def save_model_auto(model: nn.Module, base_dir: str | pathlib.Path = HW2_DATA_DIR):
+def save_model_auto(
+    model: nn.Module, base_dir: str | pathlib.Path = HW2_DATA_DIR, num_epochs: int = 50
+) -> pathlib.Path:
     """
     Save model.state_dict() into: base_dir / "<ClassName>.pt"
     Returns the full path.
@@ -208,7 +207,7 @@ def save_model_auto(model: nn.Module, base_dir: str | pathlib.Path = HW2_DATA_DI
     base = pathlib.Path(base_dir)
     base.mkdir(parents=True, exist_ok=True)
 
-    subdir = model.__class__.__name__
+    subdir = pathlib.Path(model.__class__.__name__) / f"{num_epochs}_epochs"
     name: str = model.filename  # type: ignore
     path = pathlib.Path(base / subdir) / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -230,7 +229,7 @@ def load_model_auto(
     model_cls: type[TModel],
     base_dir: str | pathlib.Path = HW2_DATA_DIR,
     device: str = DEVICE_TORCH_STR,
-    try_load : bool = True,
+    try_load: bool = True,
     *args,
     **kwargs,
 ) -> TModel:
