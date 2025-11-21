@@ -1,24 +1,30 @@
 # train.py
 from __future__ import annotations
-from torch.utils.data import Dataset
+
 import itertools
-from typing import Any, Dict, List, Sequence, Tuple
+import typing as t
+from typing import Any
 
 import torch
+from kret_studies.kret_torch.mixin.constants import DEVICE_LITERAL
+from thop import profile
 from torch import nn
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Dataset, random_split
 from tqdm.auto import tqdm
-from thop import profile
+
+from homework.HW2.dataset import DecoderDataset, EncoderDecoderDataset
 
 
-def prepare(batch, device):
+def prepare(batch: t.Tuple[torch.Tensor, ...], device: DEVICE_LITERAL):
     *inputs, target = batch
     inputs = [x.to(device) for x in inputs]
     return inputs, target.to(device)
 
 
-def build_loaders(dataset, batch_size, val_split=0.2):
+def build_loaders(
+    dataset: EncoderDecoderDataset | DecoderDataset, batch_size: int, val_split=0.2
+):
     n_total = len(dataset)
     n_val = max(1, int(n_total * val_split))
     n_train = n_total - n_val
@@ -47,7 +53,7 @@ def build_loaders(dataset, batch_size, val_split=0.2):
     return train_loader, val_loader
 
 
-def calc_loss(logits, targets, eop_idx, eos_idx):
+def calc_loss(logits: torch.Tensor, targets: torch.Tensor, eop_idx: int, eos_idx: int):
 
     B, T, V = logits.shape
     device = targets.device
@@ -73,14 +79,14 @@ def calc_loss(logits, targets, eop_idx, eos_idx):
 
 
 def _evaluate(
-    model,
-    loader,
-    eop_idx,
-    end_idx,
-    device,
+    model: nn.Module,
+    loader: DataLoader,
+    eop_idx: int,
+    end_idx: int,
+    device: DEVICE_LITERAL,
 ):
     model.eval()
-    total_loss = 0.0
+    total_loss = torch.Tensor(0.0)
     n_tokens = 0
     with torch.no_grad():
         for batch in loader:
@@ -95,13 +101,13 @@ def _evaluate(
 
 def train(
     model: nn.Module,
-    dataset: Dataset,
+    dataset: EncoderDecoderDataset | DecoderDataset,
     num_epochs: int,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler._LRScheduler,
-    device: torch.device,
+    scheduler: torch.optim.lr_scheduler.ExponentialLR,
+    device: DEVICE_LITERAL,
     batch_size: int,
-) -> Dict[str, List[Any]]:
+) -> dict[str, list[int | float]]:
 
     model.to(device).train()
     train_loader, val_loader = build_loaders(dataset, batch_size)
@@ -109,15 +115,16 @@ def train(
     # FLOPs estimate on one minibatch (gracefully fallback if thop unsupported)
     dummy_batch = next(iter(train_loader))
     dummy_inputs, _ = prepare(dummy_batch, device)
-    flops_per_step, _ = profile(model, inputs=tuple(dummy_inputs), verbose=False)
+    out = profile(model, inputs=tuple(dummy_inputs), verbose=False)
+    flops_per_step = out[0]
 
     hist = {"train_loss": [], "val_loss": [], "flops": [], "tokens": []}
-    cum_flops = 0
-    cum_tokens = 0
+    cum_flops = torch.Tensor(0.0)
+    cum_tokens = torch.Tensor(0.0)
 
     for epoch in range(1, num_epochs + 1):
 
-        train_loss = 0.0
+        train_loss = torch.Tensor(0.0)
         n_tokens = 0
 
         for batch in train_loader:
@@ -125,7 +132,7 @@ def train(
 
             optimizer.zero_grad()
             logits, _ = model(*inputs)
-            loss, t = calc_loss(logits, target, dataset.eop_idx, dataset.end_idx)
+            loss, t2 = calc_loss(logits, target, dataset.eop_idx, dataset.end_idx)
             loss.backward()
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
@@ -133,10 +140,10 @@ def train(
             optimizer.step()
 
             cum_flops += flops_per_step
-            cum_tokens += t
+            cum_tokens += t2
 
-            train_loss += loss.item() * t
-            n_tokens += t
+            train_loss += loss.item() * t2
+            n_tokens += t2
 
         scheduler.step()
         val_loss = _evaluate(
@@ -146,7 +153,7 @@ def train(
             f"Epoch {epoch} | Train loss: {(train_loss / n_tokens):.6f} | Val loss {val_loss:.6f}"
         )
 
-        hist["train_loss"].append((train_loss / n_tokens).item())
+        hist["train_loss"].append(t.cast(torch.Tensor, train_loss / n_tokens).item())
         hist["flops"].append(int(cum_flops))
         hist["val_loss"].append(val_loss.item())
         hist["tokens"].append(cum_tokens.item())

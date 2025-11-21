@@ -1,10 +1,10 @@
 # datasets.py
-from pathlib import Path
 from collections import defaultdict
-from typing import List, Tuple, Dict
+from pathlib import Path
+from typing import Dict, List, Tuple
+
 import torch
 from torch.utils.data import Dataset
-
 
 SPECIALS = {"SOS": "<SOS>", "EOS": "<EOS>", "EOP": "<EOP>"}
 
