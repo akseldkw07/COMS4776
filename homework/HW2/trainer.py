@@ -169,12 +169,38 @@ def train(
 
 import pathlib
 
-HW2_DATA_DIR = "/Users/Akseldkw/coding/Columbia/COMS4776-Data/data/homework/HW2"
+HW2_DATA_DIR = pathlib.Path(
+    "/Users/Akseldkw/coding/Columbia/COMS4776-Data/data/homework/HW2"
+)
 
 
-def save_model_auto(
-    model: nn.Module, base_dir: str | pathlib.Path = HW2_DATA_DIR, model_specs: str = ""
+def model_filename(
+    hidden_size: int,
+    dataset_name: str | None = None,
+    max_len: int | None = None,
+    num_layers: int | None = None,
+    vocab_size: int | None = None,
+    num_heads: int | None = None,
 ):
+    specs = []
+    if dataset_name:
+        specs.append(f"ds_name{dataset_name}")
+    if vocab_size is not None:
+        specs.append(f"vocab{vocab_size}")
+    if max_len is not None:
+        specs.append(f"maxlen{max_len}")
+    if hidden_size is not None:
+        specs.append(f"hid{hidden_size}")
+    if num_layers is not None:
+        specs.append(f"layers{num_layers}")
+    if num_heads is not None:
+        specs.append(f"heads{num_heads}")
+
+    spec_str = "_".join(specs)
+    return f"Model_{spec_str}.pt"
+
+
+def save_model_auto(model: nn.Module, base_dir: str | pathlib.Path = HW2_DATA_DIR):
     """
     Save model.state_dict() into: base_dir / "<ClassName>.pt"
     Returns the full path.
@@ -182,35 +208,57 @@ def save_model_auto(
     base = pathlib.Path(base_dir)
     base.mkdir(parents=True, exist_ok=True)
 
-    filename = f"{model.__class__.__name__}{model_specs}.pt"
-    path = base / filename
+    subdir = model.__class__.__name__
+    name: str = model.filename  # type: ignore
+    path = pathlib.Path(base / subdir) / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # remove thop-added attributes from the live model
+    for m in model.modules():
+        for attr in ("total_ops", "total_params"):
+            if hasattr(m, attr):
+                delattr(m, attr)
 
     torch.save(model.state_dict(), path)
     return path
 
 
+TModel = t.TypeVar("TModel", bound=nn.Module)
+
+
 def load_model_auto(
-    model_cls: type[nn.Module],
+    model_cls: type[TModel],
     base_dir: str | pathlib.Path = HW2_DATA_DIR,
     device: str = DEVICE_TORCH_STR,
-    model_specs: str = "",
+    try_load : bool = True,
     *args,
     **kwargs,
-):
+) -> TModel:
     base = pathlib.Path(base_dir)
-    path = base / f"{model_cls.__name__}{model_specs}.pt"
+    subdir = model_cls.__name__
 
     model = model_cls(*args, **kwargs)
-    print(f"[INFO] Loading model weights from {path} onto {device} device.")
 
-    # 1. Load checkpoint on CPU to avoid MPS float64 issue
-    state = torch.load(path, map_location="cpu")
+    if try_load:
+        try:
+            name: str = model.filename  # type: ignore
+            path = pathlib.Path(base / subdir) / name
+            print(f"[INFO] Loading model weights from {path} onto {device} device.")
 
-    # 2. Load into the fresh model
-    try:
-        model.load_state_dict(state, strict=True)
-    except RuntimeError:
-        print("[WARN] Load from disk failed, keeping random initialization...")
+            # 1. Load checkpoint on CPU to avoid MPS float64 issue
+            state = torch.load(path, map_location="cpu")
+
+            # --- strip thop profiling junk ---
+            cleaned_state = {
+                k: v
+                for k, v in state.items()
+                if "total_ops" not in k and "total_params" not in k
+            }
+
+            # 2. Load into the fresh model
+            model.load_state_dict(cleaned_state, strict=True)
+        except (RuntimeError, FileNotFoundError) as e:
+            print(f"[WARN] Load from disk failed, keeping random initialization... {e}")
 
     # 3. Move model to the desired device (mps / cuda / cpu)
     model.to(device)
