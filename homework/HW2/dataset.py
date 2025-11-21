@@ -1,10 +1,10 @@
 # datasets.py
-from pathlib import Path
 from collections import defaultdict
-from typing import List, Tuple, Dict
+from pathlib import Path
+from typing import Dict, List, Tuple
+
 import torch
 from torch.utils.data import Dataset
-
 
 SPECIALS = {"SOS": "<SOS>", "EOS": "<EOS>", "EOP": "<EOP>"}
 
@@ -70,7 +70,6 @@ class _CharDatasetBase(Dataset):
         # Store paired list for easy indexing
         self.pairs: List[Tuple[str, str]] = list(set(zip(self.src, self.tgt)))
 
-    
     def to_idx(self, s: str) -> List[int]:
         try:
             return [self.token_to_idx[ch] for ch in s]
@@ -92,48 +91,33 @@ class DecoderDataset(_CharDatasetBase):
     encoder_target =          en_idx + [EOP] + pig_idx + [EOS]
     """
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         en, pig = self.pairs[idx]
         en_idx = self.to_idx(en)
         pig_idx = self.to_idx(pig)
 
-        inp = (
-            [self.start_idx]
-            + en_idx
-            + [self.eop_idx]
-            + pig_idx
-        )
-        tgt = (
-            en_idx
-            + [self.eop_idx]
-            + pig_idx
-            + [self.end_idx]
-        )
-        return torch.tensor(inp, dtype=torch.long), torch.tensor(
-            tgt, dtype=torch.long
-        )
+        inp = [self.start_idx] + en_idx + [self.eop_idx] + pig_idx
+        tgt = en_idx + [self.eop_idx] + pig_idx + [self.end_idx]
+        return torch.tensor(inp, dtype=torch.long), torch.tensor(tgt, dtype=torch.long)
 
     def __len__(self):
         return len(self.pairs)
 
     # ---------  Collate -------------
-    def collate_fn(self, batch):
+    def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor]]):
         inputs, targets = zip(*batch)
         max_len_inp = max(len(x) for x in inputs)
         max_len_tgt = max(len(x) for x in targets)
 
-        def pad(seq, L):
+        def pad(seq: torch.Tensor, L: int) -> torch.Tensor:
             pad_len = L - len(seq)
             if pad_len:
-                return torch.cat(
-                    [seq, torch.full((pad_len,), self.end_idx)]
-                )
+                return torch.cat([seq, torch.full((pad_len,), self.end_idx)])
             return seq
 
         inputs = torch.stack([pad(s, max_len_inp) for s in inputs])
         targets = torch.stack([pad(t, max_len_tgt) for t in targets])
         return inputs, targets
-
 
 
 class EncoderDecoderDataset(_CharDatasetBase):
@@ -145,7 +129,7 @@ class EncoderDecoderDataset(_CharDatasetBase):
     decoder_target =  pig_idx + [EOS]
     """
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         en, pig = self.pairs[idx]
         en_idx = self.to_idx(en)
         pig_idx = self.to_idx(pig)
@@ -163,18 +147,16 @@ class EncoderDecoderDataset(_CharDatasetBase):
         return len(self.pairs)
 
     # ----------  Collate ------------
-    def collate_fn(self, batch):
+    def collate_fn(self, batch: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]]):
         dec_ins, annos, dec_tgts = zip(*batch)
         L_in = max(len(x) for x in dec_ins)
         L_anno = max(len(a) for a in annos)
         L_tgt = max(len(t) for t in dec_tgts)
 
-        def pad(seq, L):
+        def pad(seq: torch.Tensor, L: int) -> torch.Tensor:
             pad_len = L - len(seq)
             if pad_len:
-                return torch.cat(
-                    [seq, torch.full((pad_len,), self.end_idx)]
-                )
+                return torch.cat([seq, torch.full((pad_len,), self.end_idx)])
             return seq
 
         dec_ins = torch.stack([pad(s, L_in) for s in dec_ins])

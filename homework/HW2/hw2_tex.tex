@@ -1,0 +1,52 @@
+\documentclass[12pt]{article}
+% TikZ setup
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,bending}
+\newcommand{\duedate}{11/21/2025}
+\newcommand{\assignment}{Assignment 2} % Change to "Problem Set X"
+
+% Change the following to your name and UNI.
+\newcommand{\name}{Aksel Kretsinger-Walters, adk2164}
+\newcommand{\email}{adk2164@columbia.edu}
+
+% NOTE: Defining collaborators is optional; to not list collaborators, comment out the
+% line below. Maximum of two collaborators per problem set.
+%\newcommand{\collaborators}{Vig Vigerton (\texttt{UNI}), Alice Bob (\texttt{UNI})}
+% No collaborators on PS 0
+
+\makeatletter
+\def\input@path{{../}{../../}} % add as many parents as you need
+\makeatother
+\input{pset_template.tex} %% DO NOT CHANGE THIS LINE
+
+\begin{document}
+
+\psetheader %% DO NOT CHANGE THIS LINE
+
+\section*{(1) Written Problems: Batch Size vs. Learning Rate}
+\paragraph{(a)}As batch size increases, how do you expect the optimal learning rate to change?
+
+As batch size increases, I expect the optimal learning rate to also increase. This is because larger batch
+sizes provide a more accurate estimate of the gradient, allowing for larger steps to be taken in the
+parameter space without overshooting the minimum.
+
+\subsection*{1.1 Training steps vs. batch size}
+
+\paragraph{(a)} For the three points $(A,B,B)$, in Figure 1, which one has the most efficient batch size.
+Point C has the most efficient batch size. Lets assume that point C is the batch size s.t. the compute is
+used quasi-optimally. This means that as batch size drastically decreases, the number of batches needed to
+cover the entire dataset surpasses the number of available compute units, leading to underutilization of
+resources (point A resides in this region of the chart - many more training steps are required). On the other
+hand, point B's batch sizes are so large that they exceed the capacity of the compute units, leading to
+inefficiencies due to memory constraints and increased communication overhead.
+
+\paragraph{(b)} Fill in the blanks.
+
+\tbf{Point A: } Regime: Noise-dominated \quad Potential acceleration: Increase batch size
+\tbf{Point B: } Regime: Curvature-dominated \quad Potential acceleration: Decrease batch size
+
+\subsection*{(1.2) Model size, dataset size, and compute}
+\paragraph{(a)} Best way to improve model \tbf{test} performance
+(C) Increase the model size. With more PF-days of compute, increasing the model size allows for capturing
+more complex patterns in the data, leading to better generalization and improved test performance.
+\end{document}
