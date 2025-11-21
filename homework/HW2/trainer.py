@@ -6,7 +6,8 @@ import typing as t
 from typing import Any
 
 import torch
-from kret_studies.kret_torch.mixin.constants import DEVICE_LITERAL
+from types_hw2 import TrainerHistDict
+from kret_studies.kret_torch.mixin.constants import DEVICE_LITERAL, DEVICE_TORCH_STR
 from thop import profile
 from torch import nn
 from torch.nn import functional as F
@@ -14,8 +15,6 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from tqdm.auto import tqdm
 
 from dataset import DecoderDataset, EncoderDecoderDataset
-
-TORCH_ZERO = torch.tensor([0.0])
 
 
 def prepare(batch: t.Tuple[torch.Tensor, ...], device: DEVICE_LITERAL):
@@ -88,7 +87,7 @@ def _evaluate(
     device: DEVICE_LITERAL,
 ):
     model.eval()
-    total_loss = TORCH_ZERO
+    total_loss = 0.0
     n_tokens = 0
     with torch.no_grad():
         for batch in loader:
@@ -98,7 +97,7 @@ def _evaluate(
             total_loss += (loss * tokens).item()
             n_tokens += tokens
     model.train()
-    return total_loss / max(n_tokens, 1)
+    return float(total_loss / max(n_tokens, 1))
 
 
 def train(
@@ -109,7 +108,7 @@ def train(
     scheduler: torch.optim.lr_scheduler.ExponentialLR,
     device: DEVICE_LITERAL,
     batch_size: int,
-) -> dict[str, list[int | float]]:
+) -> TrainerHistDict:
 
     model.to(device).train()
     train_loader, val_loader = build_loaders(dataset, batch_size)
@@ -119,14 +118,20 @@ def train(
     dummy_inputs, _ = prepare(dummy_batch, device)
     out = profile(model, inputs=tuple(dummy_inputs), verbose=False)
     flops_per_step = out[0]
+    # print(type(flops_per_step))
 
-    hist = {"train_loss": [], "val_loss": [], "flops": [], "tokens": []}
-    cum_flops = TORCH_ZERO
-    cum_tokens = TORCH_ZERO
+    hist: TrainerHistDict = {
+        "train_loss": [],
+        "val_loss": [],
+        "flops": [],
+        "tokens": [],
+    }
+    cum_flops = 0
+    cum_tokens = 0
 
     for epoch in range(1, num_epochs + 1):
 
-        train_loss = TORCH_ZERO
+        train_loss = 0
         n_tokens = 0
 
         for batch in train_loader:
@@ -155,8 +160,58 @@ def train(
             f"Epoch {epoch} | Train loss: {(train_loss / n_tokens):.6f} | Val loss {val_loss:.6f}"
         )
 
-        hist["train_loss"].append(t.cast(torch.Tensor, train_loss / n_tokens).item())
+        hist["train_loss"].append(float(train_loss / n_tokens))
         hist["flops"].append(int(cum_flops))
-        hist["val_loss"].append(val_loss.item())
-        hist["tokens"].append(cum_tokens.item())
+        hist["val_loss"].append(float(val_loss))
+        hist["tokens"].append(int(cum_tokens))
     return hist
+
+
+import pathlib
+
+HW2_DATA_DIR = "/Users/Akseldkw/coding/Columbia/COMS4776-Data/data/homework/HW2"
+
+
+def save_model_auto(
+    model: nn.Module, base_dir: str | pathlib.Path = HW2_DATA_DIR, model_specs: str = ""
+):
+    """
+    Save model.state_dict() into: base_dir / "<ClassName>.pt"
+    Returns the full path.
+    """
+    base = pathlib.Path(base_dir)
+    base.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{model.__class__.__name__}{model_specs}.pt"
+    path = base / filename
+
+    torch.save(model.state_dict(), path)
+    return path
+
+
+def load_model_auto(
+    model_cls: type[nn.Module],
+    base_dir: str | pathlib.Path = HW2_DATA_DIR,
+    device: str = DEVICE_TORCH_STR,
+    model_specs: str = "",
+    *args,
+    **kwargs,
+):
+    base = pathlib.Path(base_dir)
+    path = base / f"{model_cls.__name__}{model_specs}.pt"
+
+    model = model_cls(*args, **kwargs)
+    print(f"[INFO] Loading model weights from {path} onto {device} device.")
+
+    # 1. Load checkpoint on CPU to avoid MPS float64 issue
+    state = torch.load(path, map_location="cpu")
+
+    # 2. Load into the fresh model
+    try:
+        model.load_state_dict(state, strict=True)
+    except RuntimeError:
+        print("[WARN] Load from disk failed, keeping random initialization...")
+
+    # 3. Move model to the desired device (mps / cuda / cpu)
+    model.to(device)
+    return model

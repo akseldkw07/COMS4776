@@ -3,7 +3,7 @@ import typing as t
 import kret_studies.kret_mpl as uks_mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from types_hw2 import ResultsDict
+from types_hw2 import ResultsDict, TrainerHistDict
 
 
 def save_loss_comparison_by_dataset(results: dict[tuple[int, str], ResultsDict]):
@@ -145,7 +145,7 @@ def save_loss_comparison_by_hidden(results: dict[tuple[int, str], ResultsDict]):
 
 
 def plot_scaling_law(
-    all_results: dict[int, dict[str, list[float]]],
+    all_results: dict[int, TrainerHistDict],
 ):  # TODO all_results: dict[int, dict[str, list[float]]]
     """Plot the scaling law showing validation loss vs FLOPs."""
 
@@ -175,7 +175,7 @@ def plot_scaling_law(
     plt.show()
 
 
-def plot_scaling_law_poly(all_results):
+def plot_scaling_law_poly(all_results: dict[int, TrainerHistDict]):
     """Plot only the polynomial fit (degree 5) for validation loss vs FLOPs."""
 
     plt.figure(figsize=(8, 6))
@@ -203,17 +203,24 @@ def plot_scaling_law_poly(all_results):
     plt.show()
 
 
-def interpolate(loss, flops, target, deg=5):
-    flops = np.array(flops)
-    target = np.array(target)
-    if target >= flops.min() and target <= flops.max():
-        f = np.polyfit(flops, loss, deg=deg)
-        return np.polyval(f, target)
+def interpolate(loss: list[float], flops_: list[int], target_: float, deg: int = 5):
+    flops = np.array(flops_)
+    target = np.array(target_)
+    deg = min(deg, len(flops) - 1)
+    # print(deg)
+    # if target >= flops.min() and target <= flops.max():TODO re-add
+    f = np.polyfit(flops, loss, deg=deg)
+    return float(np.polyval(f, target))
 
     return None
 
 
-def plot_isoflop(target_flops, colors, params_vs_loss, optimal_params):
+def plot_isoflop(
+    target_flops: list[float],
+    colors: list[str],
+    params_vs_loss: list[tuple[list[int], list[float]]],
+    optimal_params: list[int],
+):
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
@@ -255,7 +262,7 @@ def plot_isoflop(target_flops, colors, params_vs_loss, optimal_params):
     plt.show()
 
 
-def fit_linear_log(x, y):
+def fit_linear_log(x: list[float], y: list[float]):
     m, c = np.polyfit(np.log10(x), np.log10(y), 1)
     return m, c
 
@@ -282,7 +289,7 @@ def plot_flops_params(target_flops, params):
     plt.grid()
 
 
-def plot_flops_tokens(target_flops, optimal_params, all_results):
+def plot_flops_tokens(target_flops: list[float], optimal_params, all_results):
 
     optimal_tokens = []
     for target, opt in zip(target_flops, optimal_params):
