@@ -1,6 +1,6 @@
 # train.py
 from __future__ import annotations
-
+from torch.utils.data import Dataset
 import itertools
 from typing import Any, Dict, List, Sequence, Tuple
 
@@ -10,8 +10,6 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 from tqdm.auto import tqdm
 from thop import profile
-
-
 
 
 def prepare(batch, device):
@@ -49,42 +47,29 @@ def build_loaders(dataset, batch_size, val_split=0.2):
     return train_loader, val_loader
 
 
-def calc_loss(
-    logits,
-    targets,
-    eop_idx,  
-    eos_idx 
-):
-  
+def calc_loss(logits, targets, eop_idx, eos_idx):
+
     B, T, V = logits.shape
     device = targets.device
 
-    eos_pos = torch.argmax((targets == eos_idx).to(torch.int32), dim=1)    
+    eos_pos = torch.argmax((targets == eos_idx).to(torch.int32), dim=1)
     has_eos = (targets == eos_idx).any(dim=1)
-    eos_pos = torch.where(has_eos, eos_pos, torch.full_like(eos_pos, T - 1)) 
-
+    eos_pos = torch.where(has_eos, eos_pos, torch.full_like(eos_pos, T - 1))
 
     eop_pos = torch.argmax((targets == eop_idx).to(torch.int32), dim=1)
     has_eop = (targets == eop_idx).any(dim=1)
     start_pos = torch.where(has_eop, eop_pos + 1, torch.zeros_like(eop_pos))
 
-    
-    positions = torch.arange(T, device=device).unsqueeze(0)      
-    mask = (positions >= start_pos.unsqueeze(1)) & (positions <= eos_pos.unsqueeze(1)) 
-    mask = mask.to(logits.dtype) 
+    positions = torch.arange(T, device=device).unsqueeze(0)
+    mask = (positions >= start_pos.unsqueeze(1)) & (positions <= eos_pos.unsqueeze(1))
+    mask = mask.to(logits.dtype)
 
-    
-    loss_per_token = F.cross_entropy(
-        logits.transpose(1, 2),  
-        targets,
-        reduction="none"
-    )
+    loss_per_token = F.cross_entropy(logits.transpose(1, 2), targets, reduction="none")
 
-    denom = mask.sum().clamp(min=1)   # avoid division by zero
+    denom = mask.sum().clamp(min=1)  # avoid division by zero
     loss = (loss_per_token * mask).sum() / denom
 
     return loss, denom
-
 
 
 def _evaluate(
@@ -103,33 +88,30 @@ def _evaluate(
             logits, _ = model(*inputs)
             loss, tokens = calc_loss(logits, target, eop_idx, end_idx)
             total_loss += (loss * tokens).item()
-            n_tokens += tokens 
+            n_tokens += tokens
     model.train()
     return total_loss / max(n_tokens, 1)
 
 
 def train(
-    model,
-    dataset,
-    num_epochs,
-    optimizer,
-    scheduler,
-    device,
-    batch_size
+    model: nn.Module,
+    dataset: Dataset,
+    num_epochs: int,
+    optimizer: torch.optim.Optimizer,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
+    device: torch.device,
+    batch_size: int,
 ) -> Dict[str, List[Any]]:
 
-    
     model.to(device).train()
     train_loader, val_loader = build_loaders(dataset, batch_size)
 
     # FLOPs estimate on one minibatch (gracefully fallback if thop unsupported)
     dummy_batch = next(iter(train_loader))
     dummy_inputs, _ = prepare(dummy_batch, device)
-    flops_per_step, _ = profile(
-        model, inputs=tuple(dummy_inputs), verbose=False
-    )
+    flops_per_step, _ = profile(model, inputs=tuple(dummy_inputs), verbose=False)
 
-    hist = {'train_loss': [], 'val_loss': [], 'flops': [], 'tokens': []}
+    hist = {"train_loss": [], "val_loss": [], "flops": [], "tokens": []}
     cum_flops = 0
     cum_tokens = 0
 
@@ -137,7 +119,7 @@ def train(
 
         train_loss = 0.0
         n_tokens = 0
-        
+
         for batch in train_loader:
             inputs, target = prepare(batch, device)
 
@@ -153,15 +135,16 @@ def train(
             cum_flops += flops_per_step
             cum_tokens += t
 
-            train_loss += loss.item() * t 
+            train_loss += loss.item() * t
             n_tokens += t
 
-
-
         scheduler.step()
-        val_loss = _evaluate(model, val_loader, dataset.eop_idx, dataset.end_idx, device)
-        print(f"Epoch {epoch} | Train loss: {(train_loss / n_tokens):.6f} | Val loss {val_loss:.6f}")
-
+        val_loss = _evaluate(
+            model, val_loader, dataset.eop_idx, dataset.end_idx, device
+        )
+        print(
+            f"Epoch {epoch} | Train loss: {(train_loss / n_tokens):.6f} | Val loss {val_loss:.6f}"
+        )
 
         hist["train_loss"].append((train_loss / n_tokens).item())
         hist["flops"].append(int(cum_flops))
