@@ -1,17 +1,17 @@
 # train.py
 from __future__ import annotations
 
+import pathlib
 import typing as t
 
 import torch
-from types_hw2 import TrainerHistDict
+from dataset import DecoderDataset, EncoderDecoderDataset
 from kret_studies.kret_torch.mixin.constants import DEVICE_LITERAL, DEVICE_TORCH_STR
 from thop import profile
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
-
-from dataset import DecoderDataset, EncoderDecoderDataset
+from types_hw2 import TrainerHistDict
 
 
 def prepare(batch: t.Tuple[torch.Tensor, ...], device: DEVICE_LITERAL):
@@ -163,8 +163,6 @@ def train(
         hist["tokens"].append(int(cum_tokens))
     return hist
 
-
-import pathlib
 
 HW2_DATA_DIR = pathlib.Path(
     "/Users/Akseldkw/coding/Columbia/COMS4776-Data/data/homework/HW2"
