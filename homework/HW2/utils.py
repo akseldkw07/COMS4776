@@ -1,5 +1,3 @@
-import typing as t
-
 import kret_studies.kret_mpl as uks_mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +16,7 @@ def save_loss_comparison_by_dataset(results: dict[tuple[int, str], ResultsDict])
     configs = list(results.keys())
 
     # Group by hidden size
-    hidden_sizes = sorted(set(h for h, _ in configs))
+    hidden_sizes = sorted({h for h, _ in configs})
 
     # For each hidden size, get the two datasets
     groups = {}
@@ -29,7 +27,7 @@ def save_loss_comparison_by_dataset(results: dict[tuple[int, str], ResultsDict])
 
     # Get the four models: (h1, d1), (h1, d2), (h2, d1), (h2, d2)
     h1, h2 = hidden_sizes[0], hidden_sizes[1]
-    datasets = sorted(set(d for _, d in configs))
+    datasets = sorted({d for _, d in configs})
     d1, d2 = datasets[0], datasets[1]
 
     l1 = results[(h1, d1)]
@@ -42,19 +40,19 @@ def save_loss_comparison_by_dataset(results: dict[tuple[int, str], ResultsDict])
 
     ax[0][0].plot(range(len(l1["train_loss"])), l1["train_loss"], label="ds=" + d1)
     ax[0][0].plot(range(len(l2["train_loss"])), l2["train_loss"], label="ds=" + d2)
-    ax[0][0].title.set_text("Train Loss | Model Hidden Size = {}".format(h1))
+    ax[0][0].title.set_text(f"Train Loss | Model Hidden Size = {h1}")
 
     ax[0][1].plot(range(len(l1["val_loss"])), l1["val_loss"], label="ds=" + d1)
     ax[0][1].plot(range(len(l2["val_loss"])), l2["val_loss"], label="ds=" + d2)
-    ax[0][1].title.set_text("Val Loss | Model Hidden Size = {}".format(h1))
+    ax[0][1].title.set_text(f"Val Loss | Model Hidden Size = {h1}")
 
     ax[1][0].plot(range(len(l3["train_loss"])), l3["train_loss"], label="ds=" + d1)
     ax[1][0].plot(range(len(l4["train_loss"])), l4["train_loss"], label="ds=" + d2)
-    ax[1][0].title.set_text("Train Loss | Model Hidden Size = {}".format(h2))
+    ax[1][0].title.set_text(f"Train Loss | Model Hidden Size = {h2}")
 
     ax[1][1].plot(range(len(l3["val_loss"])), l3["val_loss"], label="ds=" + d1)
     ax[1][1].plot(range(len(l4["val_loss"])), l4["val_loss"], label="ds=" + d2)
-    ax[1][1].title.set_text("Val Loss | Model Hidden Size = {}".format(h2))
+    ax[1][1].title.set_text(f"Val Loss | Model Hidden Size = {h2}")
 
     for i in range(2):
         ax[i][0].set_xlabel("Epochs", fontsize=10)
@@ -67,8 +65,8 @@ def save_loss_comparison_by_dataset(results: dict[tuple[int, str], ResultsDict])
     fig.suptitle("Performance by Dataset Size", fontsize=16)
     plt.tight_layout()
     fig.subplots_adjust(top=0.9)
-    plt.savefig("./loss_plot_by_dataset.pdf")
-    plt.show()
+    fig.savefig("./loss_plot_by_dataset.pdf")
+    return fig
 
 
 def save_loss_comparison_by_hidden(results: dict[tuple[int, str], ResultsDict]):
@@ -83,8 +81,8 @@ def save_loss_comparison_by_hidden(results: dict[tuple[int, str], ResultsDict]):
     configs = list(results.keys())
 
     # Get unique hidden sizes and datasets
-    hidden_sizes = sorted(set(h for h, _ in configs))
-    datasets = sorted(set(d for _, d in configs))
+    hidden_sizes = sorted({h for h, _ in configs})
+    datasets = sorted({d for _, d in configs})
 
     h1, h2 = hidden_sizes[0], hidden_sizes[1]
     d1, d2 = datasets[0], datasets[1]
@@ -138,10 +136,10 @@ def save_loss_comparison_by_hidden(results: dict[tuple[int, str], ResultsDict]):
         ax[i][1].legend(loc="upper right")
 
     fig.suptitle("Performance by Hidden State Size", fontsize=16)
-    plt.tight_layout()
+    fig.tight_layout()
     fig.subplots_adjust(top=0.9)
-    plt.savefig("./loss_plot_by_hidden.pdf")
-    plt.show()
+    fig.savefig("./loss_plot_by_hidden.pdf")
+    return fig
 
 
 def plot_scaling_law(
