@@ -1,0 +1,100 @@
+\documentclass[12pt]{article}
+
+\newcommand{\duedate}{-----}
+\newcommand{\assignment}{Lecture 16 Summary: Diffusion Models}
+
+% Change the following to your name and UNI.
+\newcommand{\name}{Aksel Kretsinger-Walters, adk2164}
+\newcommand{\email}{}
+
+% NOTE: Defining collaborators is optional; to not list collaborators, comment out the
+% line below. Maximum of two collaborators per problem set.
+%\newcommand{\collaborators}{Vig Vigerton (\texttt{UNI}), Alice Bob (\texttt{UNI})}
+% No collaborators on PS 0
+
+\makeatletter
+\def\input@path{{../}{../../}{../../../}} % add as many parents as you need
+\makeatother
+\input{pset_template_NNDL.tex} %% DO NOT CHANGE THIS LINE
+
+\begin{document}
+\psetheader %% DO NOT CHANGE THIS LINE
+
+\section{VQ-VAE: Discrete Latent Codes}
+Vector-Quantized VAEs map images to discrete latent tokens.
+An encoder converts a $256\times 256$ image into a $32\times 32$ grid of discrete codes;
+a decoder reconstructs the image from these codes.
+The training objective includes:
+\[
+		\log p(x \mid q(z_e(x)))
+		+ \| \mathrm{sg}[z_e(x)] - e \|_2^2
+		+ \beta \| z_e(x) - \mathrm{sg}[e] \|_2^2 .
+\]
+(See slide 3 for diagram.)
+
+\section{Diffusion Models: Intuition}
+Diffusion models gradually corrupt data with Gaussian noise.
+A neural network learns to reverse this noising process by predicting the noise added at each step.
+After training, sampling proceeds by starting from pure noise and iteratively denoising.
+(Visual examples on slide 4.)
+
+\section{Formal Diffusion Process}
+A forward noising Markov chain adds noise over $T$ steps:
+\[
+		q(x_t \mid x_{t-1}) = \mathcal{N}(x_t; \sqrt{1-\beta_t} x_{t-1}, \beta_t I),
+\]
+leading to $x_T$ approaching an isotropic Gaussian.
+The reverse process is parameterized by a neural network:
+\[
+		p_\theta(x_{t-1} \mid x_t) = \mathcal{N}(x_{t-1}; \mu_\theta(x_t, t), \sigma_t^2 I).
+\]
+(See slide 5.)
+
+\section{Training Objective}
+Training maximizes a variational lower bound on $\log p_\theta(x_0)$.
+When forward variances $\beta_t$ are fixed, the posterior $q(x_{t-1} \mid x_t, x_0)$ has no learnable parameters.
+Using the reparameterization:
+\[
+		x_t = \sqrt{\bar{\alpha}_t}x_0 + \sqrt{1-\bar{\alpha}_t}\,\epsilon,
+\]
+the network is trained to predict the noise $\epsilon$.
+The simplified loss (Ho et al.\ 2021) is:
+\[
+		\mathbb{E}_{t, x_0, \epsilon}\,\| \epsilon - \epsilon_\theta(x_t, t)\|_2^2 .
+\]
+(Slide 6.)
+
+\section{Sampling and Architecture}
+Sampling applies the learned reverse transitions:
+\[
+		x_{t-1} = \frac{1}{\sqrt{\alpha_t}}\Big(x_t -
+		\frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}}\,\epsilon_\theta(x_t, t)\Big) + \sigma_t z.
+\]
+Most implementations use a U-Net because input and output shapes match.
+(Slides 7--9.)
+
+\section{Summary of Key Properties}
+\begin{itemize}
+		\item Diffusion is parameterized as a Markov chain; transitions are Gaussian.
+		\item Forward variances are fixed or learned; reverse means are learned.
+		\item Training optimizes a variational upper bound on $-\log p(x)$.
+		\item KL terms simplify due to Gaussian and Markov assumptions.
+		\item Predicting noise directly yields the most stable training.
+		\item U-Net-like architectures fit naturally because $x_t$ and $x_{t-1}$ share dimensionality.
+\end{itemize}
+(See slide 10.)
+
+\section{Cold Diffusion}
+Cold Diffusion replaces Gaussian noise with arbitrary image degradations (e.g., blur, pixelation, masks).
+The reverse model learns to invert these transformations without stochastic noise.
+(Slide 11.)
+
+\section{Stable Diffusion}
+Two extensions:
+\begin{enumerate}
+		\item Perform diffusion in a latent space (via an autoencoder or VQ-VAE), offering major speed benefits.
+		\item Condition the reverse process on text embeddings, using cross-attention between text and image latents.
+\end{enumerate}
+(Slides 12--13.)
+
+\end{document}
