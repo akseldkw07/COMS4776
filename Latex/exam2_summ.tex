@@ -1,0 +1,130 @@
+\documentclass[12pt]{article}
+
+\newcommand{\duedate}{-----}
+\newcommand{\assignment}{Exam 2 Summary}
+
+% Change the following to your name and UNI.
+\newcommand{\name}{Aksel Kretsinger-Walters, adk2164}
+\newcommand{\email}{}
+
+% NOTE: Defining collaborators is optional; to not list collaborators, comment out the
+% line below. Maximum of two collaborators per problem set.
+%\newcommand{\collaborators}{Vig Vigerton (\texttt{UNI}), Alice Bob (\texttt{UNI})}
+% No collaborators on PS 0
+
+\makeatletter
+\def\input@path{{../}{../../}{../../../}} % add as many parents as you need
+\makeatother
+\input{pset_template_NNDL.tex} %% DO NOT CHANGE THIS LINE
+
+\begin{document}
+\psetheader %% DO NOT CHANGE THIS LINE
+
+\section{RNN + Attention vs.\ Transformer Architectures}
+
+\subsection{RNN + Attention (Seq2Seq)}
+The classical sequence--to--sequence architecture consists of:
+\begin{itemize}
+		\item An \textbf{encoder RNN} (LSTM or GRU) that processes the input sequence sequentially:
+    \[
+						h_t^{\text{enc}} = \mathrm{RNN}(x_t,\, h_{t-1}^{\text{enc}}).
+    \]
+		\item A \textbf{decoder RNN} that autoregressively generates output tokens:
+    \[
+						s_t = \mathrm{RNN}(y_{t-1},\, s_{t-1}).
+    \]
+		\item \textbf{Additive or dot-product attention} over encoder states:
+    \[
+						e_{t,i} = f_{\mathrm{att}}(s_{t-1},\, h_i^{\text{enc}}), \qquad
+						\alpha_{t,i} = \mathrm{softmax}_i(e_{t,i}),
+    \]
+    \[
+						c_t = \sum_{i} \alpha_{t,i}\, h_i^{\text{enc}}.
+    \]
+		\item The decoder output distribution is conditioned on both the RNN state and context:
+    \[
+						p(y_t \mid y_{<t}, x) = \mathrm{softmax}(W[s_t, c_t]).
+    \]
+\end{itemize}
+
+\paragraph{Key properties.}
+\begin{itemize}
+		\item Sequential computation in both encoder and decoder.
+		\item Attention is \emph{cross-attention only}: decoder attends to encoder states.
+		\item Long-range dependencies handled via recurrent states + attention.
+		\item Parallelism limited: $O(n)$ sequential steps.
+\end{itemize}
+
+\subsection{Transformer}
+The Transformer removes recurrence entirely and relies on:
+\begin{itemize}
+		\item \textbf{Self-attention} in encoder and decoder layers:
+    \[
+						\mathrm{SelfAttn}(Q,K,V)
+						= \mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V,
+    \]
+    where $Q=K=V$ are token representations of the same layer.
+		\item \textbf{Cross-attention} in the decoder, where
+    \[
+						Q = H^{\text{dec}}, \quad K=V = H^{\text{enc}}.
+    \]
+		\item \textbf{Position-wise feed-forward networks} applied identically at each position.
+		\item \textbf{Positional encodings} to inject order information.
+\end{itemize}
+
+\paragraph{Key properties.}
+\begin{itemize}
+		\item No recurrence: full parallelism across sequence length.
+		\item Encoder uses stacked self-attention layers only.
+		\item Decoder uses \emph{masked} self-attention + cross-attention.
+		\item Complexity dominated by attention: $O(n^2)$ per layer.
+\end{itemize}
+
+\subsection{High-Level Comparison}
+\begin{center}
+		\begin{tabular}{lcc}
+				\toprule
+				& \textbf{RNN + Attention} & \textbf{Transformer} \\
+				\midrule
+				Core operation & Recurrence & Self-attention \\
+				Parallelism & Low & High \\
+				Long-range modeling & Via hidden state + attention & Direct via self-attention \\
+				Attention type & Cross-attention only & Self-attn + cross-attn (decoder) \\
+				Order information & Implicit in recurrence & Positional encodings \\
+				Complexity & $O(n)$ sequential steps & $O(n^2)$ per layer \\
+				\bottomrule
+		\end{tabular}
+\end{center}
+
+\begin{figure}[h!]
+		\centering
+		\begin{tikzpicture}[
+						node distance=1.2cm,
+						box/.style={draw, rounded corners, minimum width=2.6cm, minimum height=0.9cm, align=center},
+						arr/.style={->, thick}
+				]
+
+				% RNN + Attention (left)
+				\node[box] (enc) {Encoder RNN};
+				\node[box, below=of enc] (att) {Attention \\ (cross-attn)};
+				\node[box, below=of att] (dec) {Decoder RNN};
+
+				\draw[arr] (enc) -- (att);
+				\draw[arr] (att) -- (dec);
+
+				% Divider
+				\node at (4.3,-1) {\Large $\Longleftrightarrow$};
+
+				% Transformer (right)
+				\node[box, right=4.8cm of enc] (encT) {Encoder Layer\\ (Self-Attn)};
+				\node[box, below=of encT] (decT1) {Decoder Layer\\ (Masked Self-Attn)};
+				\node[box, below=of decT1] (decT2) {Cross-Attn Layer};
+
+				\draw[arr] (encT) -- (decT1);
+				\draw[arr] (decT1) -- (decT2);
+
+		\end{tikzpicture}
+		\caption{Architecture comparison between RNN + Attention (left) and Transformer (right).}
+\end{figure}
+
+\end{document}
